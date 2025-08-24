@@ -10,13 +10,10 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -25,28 +22,33 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Generar reporte JSON/HTML
-        run: |
           pip install pylint-json2html
+
+      - name: Detectar archivos Python rastreados
+        id: targets
+        shell: bash
+        run: |
           TARGETS="$(git ls-files '*.py' || true)"
-          pylint -f json $TARGETS > pylint.json
+          echo "targets=${TARGETS}" >> "$GITHUB_OUTPUT"
+
+      # 1) Reporte SIEMPRE (no rompe el job)
+      - name: Generar reporte (JSON + HTML, no romper)
+        if: ${{ steps.targets.outputs.targets != '' }}
+        shell: bash
+        run: |
+          pylint --output-format=json --exit-zero ${{ steps.targets.outputs.targets }} > pylint.json
           pylint-json2html -o pylint_report.html pylint.json
-      
-      - name: Subir artefacto (reporte)
+
+      - name: Subir reporte como artefacto
+        if: ${{ steps.targets.outputs.targets != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: pylint-report
           path: pylint_report.html
 
-
-      - name: Ejecutar pylint (todo el repo, umbral 9.5)
+      # 2) Quality gate (rompe el job si hay hallazgos o score bajo)
+      - name: Quality gate (todo el repo, umbral 9.5)
+        if: ${{ steps.targets.outputs.targets != '' }}
         shell: bash
         run: |
-          set -euo pipefail
-          TARGETS="$(git ls-files '*.py' || true)"
-          if [ -z "$TARGETS" ]; then
-            echo "No se encontraron archivos .py rastreados por git."
-            exit 0
-          fi
-          pylint --fail-under=9.5 $TARGETS
+          pylint --fail-under=9.5 ${{ steps.targets.outputs.targets }}
