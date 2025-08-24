@@ -26,6 +26,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Generar reporte JSON/HTML
+        run: |
+          pip install pylint-json2html
+          TARGETS="$(git ls-files '*.py' || true)"
+          pylint -f json $TARGETS > pylint.json
+          pylint-json2html -o pylint_report.html pylint.json
+      
+      - name: Subir artefacto (reporte)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: pylint_report.html
+
+
       - name: Ejecutar pylint (todo el repo, umbral 9.5)
         shell: bash
         run: |
