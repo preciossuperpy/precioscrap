@@ -1,0 +1,38 @@
+name: Lint (pylint)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar pylint (todo el repo, umbral 9.5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGETS="$(git ls-files '*.py' || true)"
+          if [ -z "$TARGETS" ]; then
+            echo "No se encontraron archivos .py rastreados por git."
+            exit 0
+          fi
+          pylint --fail-under=9.5 $TARGETS
